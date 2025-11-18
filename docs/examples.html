@@ -810,6 +810,131 @@ automationService.start()</code></pre>
               </div>
             </div>
           </div>
+
+          <!-- Demo 6: Plugin System with Array Injection -->
+          <div class="demo-card" id="demo6-card">
+            <div class="demo-card-header" onclick="toggleRegistry('demo6')">
+              <div>
+                <h3><span class="demo-icon">🔌</span> Example 7: Plugin System with Array Injection</h3>
+              </div>
+              <span class="expand-icon expanded" id="demo6-expand">▼</span>
+            </div>
+            <p><strong>NEW!</strong> Automatically inject ALL implementations of an interface using array parameters. Perfect for plugins, event handlers, and middleware.</p>
+            <ul class="features-list">
+              <li>Automatic array injection</li>
+              <li>Multiple plugin implementations</li>
+              <li>Zero manual configuration</li>
+              <li>Transformer-powered</li>
+            </ul>
+            <div class="demo-registry expanded" id="demo6-registry">
+              <div class="code-section">
+                <h4>💻 Code Example</h4>
+            <pre class="line-numbers"><code class="language-typescript">// Define plugin interface
+interface IPlugin {
+  name: string
+  execute(): string
+}
+
+// Create multiple plugin implementations
+class ValidationPlugin implements IPlugin {
+  name = 'validation'
+  execute(): string {
+    console.log('Validating...')
+    return 'validated'
+  }
+}
+
+class AuthPlugin implements IPlugin {
+  name = 'auth'
+  execute(): string {
+    console.log('Authenticating...')
+    return 'authenticated'
+  }
+}
+
+class LoggingPlugin implements IPlugin {
+  name = 'logging'
+  execute(): string {
+    console.log('Logging...')
+    return 'logged'
+  }
+}
+
+// Plugin host with array parameter - transformer auto-detects!
+class PluginHost {
+  constructor(public plugins: IPlugin[]) {}  // ✨ Array injection
+
+  executeAll(): string[] {
+    console.log(`Executing ${this.plugins.length} plugins...`)
+    return this.plugins.map(p => {
+      console.log(`  - ${p.name}`)
+      return p.execute()
+    })
+  }
+
+  getPluginNames(): string[] {
+    return this.plugins.map(p => p.name)
+  }
+}
+
+// Setup container
+const builder = new Container().builder()
+
+// Register all plugins
+builder.registerType(ValidationPlugin).as&lt;IPlugin&gt;()
+builder.registerType(AuthPlugin).as&lt;IPlugin&gt;()
+builder.registerType(LoggingPlugin).as&lt;IPlugin&gt;()
+
+// Register host - transformer automatically generates resolveTypeAll()!
+builder.registerType(PluginHost).as&lt;PluginHost&gt;()
+
+// Build and resolve
+const app = builder.build()
+const host = app.resolveType&lt;PluginHost&gt;()
+
+// Use the plugin system
+console.log('Registered plugins:', host.getPluginNames())
+// Output: ['validation', 'auth', 'logging']
+
+const results = host.executeAll()
+// Output:
+//   Executing 3 plugins...
+//     - validation
+//     - auth
+//     - logging
+
+console.log('Results:', results)
+// Output: ['validated', 'authenticated', 'logged']</code></pre>
+              </div>
+              <div class="code-section">
+                <h4>🔍 What the Transformer Generates</h4>
+            <pre class="line-numbers"><code class="language-typescript">// Before transformation:
+builder.registerType(PluginHost).as&lt;PluginHost&gt;()
+
+// After transformation (automatic!):
+builder.registerType(PluginHost).as&lt;PluginHost&gt;().autoWire({
+  mapResolvers: [
+    (c) => c.resolveTypeAll("IPlugin")  // 🎯 Auto-generated!
+  ]
+})
+
+// Supported array syntaxes:
+// ✅ IPlugin[]
+// ✅ Array&lt;IPlugin&gt;
+// ✅ readonly IPlugin[]</code></pre>
+              </div>
+              <div class="code-section">
+                <h4>📦 Use Cases</h4>
+                <ul class="features-list">
+                  <li>🔌 <strong>Plugin systems</strong> - Load all plugins dynamically</li>
+                  <li>📨 <strong>Event handlers</strong> - All subscribers to same event</li>
+                  <li>🔗 <strong>Middleware</strong> - Execute through all middleware</li>
+                  <li>✅ <strong>Validators</strong> - Run all validation rules</li>
+                  <li>📡 <strong>Notifications</strong> - Send to all channels</li>
+                </ul>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 

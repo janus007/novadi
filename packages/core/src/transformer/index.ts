@@ -238,6 +238,58 @@ function getTypeNameFromTypeNode(typeNode: ts.TypeNode): string | null {
 }
 
 /**
+ * Extended type information including array detection
+ */
+interface TypeInfo {
+  typeName: string | null
+  isArray: boolean
+  elementType?: string
+}
+
+/**
+ * Extract type information including array detection from TypeNode
+ * Handles: IFoo[], Array<IFoo>, readonly IFoo[]
+ */
+function getTypeInfoFromTypeNode(typeNode: ts.TypeNode): TypeInfo {
+  // Handle array syntax: IFoo[]
+  if (ts.isArrayTypeNode(typeNode)) {
+    const elementTypeName = getTypeNameFromTypeNode(typeNode.elementType)
+    if (elementTypeName) {
+      return {
+        typeName: elementTypeName,
+        isArray: true,
+        elementType: elementTypeName
+      }
+    }
+  }
+
+  // Handle generic array syntax: Array<IFoo>
+  if (ts.isTypeReferenceNode(typeNode)) {
+    const typeName = typeNode.typeName
+    if (ts.isIdentifier(typeName) && typeName.text === 'Array') {
+      // Check if has type argument
+      if (typeNode.typeArguments && typeNode.typeArguments.length === 1) {
+        const elementTypeName = getTypeNameFromTypeNode(typeNode.typeArguments[0])
+        if (elementTypeName) {
+          return {
+            typeName: elementTypeName,
+            isArray: true,
+            elementType: elementTypeName
+          }
+        }
+      }
+    }
+  }
+
+  // Regular single type
+  const typeName = getTypeNameFromTypeNode(typeNode)
+  return {
+    typeName,
+    isArray: false
+  }
+}
+
+/**
  * Get fully qualified name from QualifiedName node
  */
 function getQualifiedName(node: ts.QualifiedName): string {
@@ -311,6 +363,15 @@ function hasExplicitMapResolvers(chain: ts.CallExpression[]): boolean {
 }
 
 /**
+ * Extended parameter information including array detection
+ */
+interface ParameterInfo {
+  index: number
+  typeName: string | null
+  isArray?: boolean
+}
+
+/**
  * Extract parameters using best available method (TypeChecker or AST)
  * @internal
  */
@@ -318,7 +379,7 @@ function extractParameters(
   node: ts.CallExpression,
   registerTypeCall: ts.CallExpression,
   checker: ts.TypeChecker
-): Array<{ index: number; typeName: string | null }> {
+): Array<ParameterInfo> {
   const constructorArg = registerTypeCall.arguments[0]
 
   // Tier 1: TypeChecker (fast and accurate)
@@ -326,7 +387,7 @@ function extractParameters(
   let constructorParams = getConstructorParameters(constructorType, checker)
 
   // Tier 2: AST fallback
-  let astFallbackParams: Array<{ name: string; typeName: string | null }> | null = null
+  let astFallbackParams: Array<{ name: string; typeName: string | null; isArray?: boolean }> | null = null
   if (constructorParams.length === 0) {
     const classDecl = findClassDeclarationInChain(node, checker)
     if (classDecl) {
@@ -335,24 +396,26 @@ function extractParameters(
   }
 
   // Build resolver entries
-  const resolverEntries: Array<{ index: number; typeName: string | null }> = []
+  const resolverEntries: Array<ParameterInfo> = []
 
   if (astFallbackParams) {
-    // Use AST parameters
+    // Use AST parameters (with array detection)
     for (let i = 0; i < astFallbackParams.length; i++) {
       resolverEntries.push({
         index: i,
-        typeName: astFallbackParams[i].typeName
+        typeName: astFallbackParams[i].typeName,
+        isArray: astFallbackParams[i].isArray
       })
     }
   } else {
     // Use TypeChecker parameters
     for (let i = 0; i < constructorParams.length; i++) {
       const param = constructorParams[i]
-      const interfaceName = getInterfaceNameFromType(param.type)
+      const typeInfo = getInterfaceInfoFromType(param.type, checker)
       resolverEntries.push({
         index: i,
-        typeName: interfaceName
+        typeName: typeInfo.typeName,
+        isArray: typeInfo.isArray
       })
     }
   }
@@ -367,7 +430,8 @@ function extractParameters(
         for (let i = 0; i < astParams.length; i++) {
           resolverEntries.push({
             index: i,
-            typeName: astParams[i].typeName
+            typeName: astParams[i].typeName,
+            isArray: astParams[i].isArray
           })
         }
       }
@@ -502,13 +566,43 @@ function getInterfaceNameFromType(type: ts.Type): string | null {
 }
 
 /**
+ * Extract interface information including array detection from a TypeChecker Type
+ * Handles: IFoo[], Array<IFoo>, readonly IFoo[]
+ */
+function getInterfaceInfoFromType(type: ts.Type, checker: ts.TypeChecker): TypeInfo {
+  // Check if this is an array type
+  if (checker.isArrayType(type)) {
+    // Get the element type of the array
+    const typeArgs = (type as any).typeArguments
+    if (typeArgs && typeArgs.length === 1) {
+      const elementType = typeArgs[0]
+      const elementTypeName = getInterfaceNameFromType(elementType)
+      if (elementTypeName) {
+        return {
+          typeName: elementTypeName,
+          isArray: true,
+          elementType: elementTypeName
+        }
+      }
+    }
+  }
+
+  // Regular single type
+  const typeName = getInterfaceNameFromType(type)
+  return {
+    typeName,
+    isArray: false
+  }
+}
+
+/**
  * Extract constructor parameters directly from AST (fallback when TypeChecker unavailable)
  * Works with esbuild and standalone source files outside TypeScript Program
  */
 function extractConstructorParametersFromAST(
   classNode: ts.ClassDeclaration
-): Array<{ name: string; typeName: string | null }> {
-  const params: Array<{ name: string; typeName: string | null }> = []
+): Array<{ name: string; typeName: string | null; isArray?: boolean }> {
+  const params: Array<{ name: string; typeName: string | null; isArray?: boolean }> = []
 
   // Find constructor declaration
   const constructor = classNode.members.find(
@@ -519,7 +613,7 @@ function extractConstructorParametersFromAST(
     return params
   }
 
-  // Extract each parameter with its type annotation
+  // Extract each parameter with its type annotation (including array detection)
   for (const param of constructor.parameters) {
     if (!param.type) continue
 
@@ -528,10 +622,14 @@ function extractConstructorParametersFromAST(
       paramName = param.name.text
     }
 
-    const typeName = getTypeNameFromTypeNode(param.type)
+    const typeInfo = getTypeInfoFromTypeNode(param.type)
 
-    if (paramName && typeName) {
-      params.push({ name: paramName, typeName })
+    if (paramName && typeInfo.typeName) {
+      params.push({
+        name: paramName,
+        typeName: typeInfo.typeName,
+        isArray: typeInfo.isArray
+      })
     }
   }
 
@@ -575,20 +673,46 @@ function findClassDeclarationInChain(
  * Create AST for .autoWire({ mapResolvers: [(c) => c.resolveType("IEventBus"), undefined, ...] })
  * Array-based autowiring with optimal O(1) performance
  * Minification-safe and refactoring-friendly (transformer regenerates on recompile)
+ * Supports array injection: (c) => c.resolveTypeAll("IPlugin") for IPlugin[] parameters
  */
 function createAutoWireMapResolversCall(
-  entries: Array<{ index: number; typeName: string | null }>,
+  entries: Array<ParameterInfo>,
   context: ts.TransformationContext
 ): ts.CallExpression {
   const factory = context.factory
 
-  // Create array of resolvers: [(c) => c.resolveType("TypeName"), undefined, ...]
+  // Create array of resolvers: [(c) => c.resolveType("TypeName"), (c) => c.resolveTypeAll("IPlugin"), undefined, ...]
   const resolverExpressions = entries.map(entry => {
     if (entry.typeName === null) {
       // Primitive type → undefined
       return factory.createIdentifier('undefined')
+    } else if (entry.isArray) {
+      // Array type → (c) => c.resolveTypeAll("TypeName")
+      return factory.createArrowFunction(
+        undefined, // modifiers
+        undefined, // type parameters
+        [factory.createParameterDeclaration(
+          undefined, // modifiers
+          undefined, // dotDotDotToken
+          'c', // name
+          undefined, // questionToken
+          undefined, // type
+          undefined  // initializer
+        )],
+        undefined, // type
+        factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
+        // c.resolveTypeAll("TypeName")
+        factory.createCallExpression(
+          factory.createPropertyAccessExpression(
+            factory.createIdentifier('c'),
+            'resolveTypeAll'
+          ),
+          undefined,
+          [factory.createStringLiteral(entry.typeName)]
+        )
+      )
     } else {
-      // Interface type → (c) => c.resolveType("TypeName")
+      // Single interface type → (c) => c.resolveType("TypeName")
       return factory.createArrowFunction(
         undefined, // modifiers
         undefined, // type parameters

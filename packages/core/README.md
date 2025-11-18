@@ -4,7 +4,7 @@
 
 NovaDI is a modern dependency injection container that keeps your business logic clean from framework code. No decorators, no annotations, no runtime reflection - just pure TypeScript and compile-time type safety.
 
-[![Version](https://img.shields.io/badge/version-0.5.5-blue.svg)](https://github.com/janus007/novadi)
+[![Version](https://img.shields.io/badge/version-0.5.0-blue.svg)](https://github.com/janus007/NovaDI)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.3+-blue.svg)](https://www.typescriptlang.org/)
 [![Bundle Size](https://img.shields.io/badge/bundle-4KB-success.svg)](dist/)
@@ -62,7 +62,7 @@ const userService = app.resolveType<UserService>()
 - **Tiny Bundle** - Only 3.93 KB gzipped (second smallest, 79% larger than Brandi but with full autowire)
 - **Type-Safe** - Full TypeScript type inference and compile-time checking
 - **Composition Root** - All DI configuration in one place
-- **Multiple Lifetimes** - Singleton, Transient (default), Per-Request scoping
+- **Multiple Lifetimes** - Singleton (default), Transient, Per-Request scoping
 - **TypeScript Transformer** - Compile-time type name injection
 
 ---
@@ -273,23 +273,83 @@ builder.registerType(ApiClient).as<IHttpClient>().autoWire({
 
 **For regular service dependencies (no primitives), just register the type - transformer handles everything!**
 
+### Array Injection (Multiple Implementations)
+
+**NEW:** The transformer automatically detects array parameters and injects ALL registered implementations!
+
+**Common use case - Plugin System:**
+
+```typescript
+interface IPlugin {
+  name: string
+  execute(): void
+}
+
+class ValidationPlugin implements IPlugin {
+  name = 'validation'
+  execute() { /* validation logic */ }
+}
+
+class AuthPlugin implements IPlugin {
+  name = 'auth'
+  execute() { /* auth logic */ }
+}
+
+class PluginHost {
+  constructor(public plugins: IPlugin[]) {}  // ✨ Array parameter
+
+  executeAll() {
+    this.plugins.forEach(p => p.execute())
+  }
+}
+
+// Register multiple implementations
+builder.registerType(ValidationPlugin).as<IPlugin>()
+builder.registerType(AuthPlugin).as<IPlugin>()
+
+// Just works! Transformer auto-generates resolveTypeAll()
+builder.registerType(PluginHost).as<PluginHost>()
+
+const app = builder.build()
+const host = app.resolveType<PluginHost>()
+host.plugins.length // → 2 (both plugins injected automatically!)
+```
+
+**Supported array syntaxes:**
+- `IFoo[]` - Standard array syntax ✅
+- `Array<IFoo>` - Generic array syntax ✅
+- `readonly IFoo[]` - Readonly arrays ✅
+
+**How it works:**
+- Transformer detects array type parameters at compile-time
+- Generates `(c) => c.resolveTypeAll("IPlugin")` resolver
+- Empty array `[]` returned if no implementations registered
+- Respects lifetime configuration (singleton, transient, per-request)
+
+**Perfect for:**
+- 🔌 Plugin systems
+- 📨 Event handlers / subscribers
+- 🔗 Middleware pipelines
+- ✅ Validation rule sets
+- 📡 Notification channels
+
 ---
 
 ## Lifetimes
 
-**Important:** Default lifetime is `transient` (new instance every time).
+**Important:** Default lifetime is `singleton` (one instance for container lifetime).
 
-### Singleton - One instance for the container lifetime
+### Singleton - One instance for the container lifetime (DEFAULT)
 ```typescript
-builder.registerType(Database).as<IDatabase>().singleInstance()
+builder.registerType(Database).as<IDatabase>()
+// No explicit lifetime = singleton by default
 ```
 
-Use for: Loggers, database connections, configuration, caches
+Use for: Loggers, database connections, configuration, caches, most services
 
-### Transient - New instance every resolution (DEFAULT)
+### Transient - New instance every resolution
 ```typescript
-builder.registerType(RequestHandler).as<IRequestHandler>()
-// No .singleInstance() = transient by default
+builder.registerType(RequestHandler).as<IRequestHandler>().instancePerDependency()
 ```
 
 Use for: Request handlers, commands, stateful operations
@@ -855,8 +915,8 @@ Core API:
    const service = app.resolveType<UserService>()
 
 Lifetimes:
-- .singleInstance() - singleton
-- .instancePerDependency() - transient (DEFAULT)
+- Default (no method call) - singleton (DEFAULT)
+- .instancePerDependency() - transient
 - .instancePerRequest() - per resolution tree
 
 AutoWire (Transformer-Powered):

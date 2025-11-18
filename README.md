@@ -273,6 +273,66 @@ builder.registerType(ApiClient).as<IHttpClient>().autoWire({
 
 **For regular service dependencies (no primitives), just register the type - transformer handles everything!**
 
+### Array Injection (Multiple Implementations)
+
+**NEW:** The transformer automatically detects array parameters and injects ALL registered implementations!
+
+**Common use case - Plugin System:**
+
+```typescript
+interface IPlugin {
+  name: string
+  execute(): void
+}
+
+class ValidationPlugin implements IPlugin {
+  name = 'validation'
+  execute() { /* validation logic */ }
+}
+
+class AuthPlugin implements IPlugin {
+  name = 'auth'
+  execute() { /* auth logic */ }
+}
+
+class PluginHost {
+  constructor(public plugins: IPlugin[]) {}  // ✨ Array parameter
+
+  executeAll() {
+    this.plugins.forEach(p => p.execute())
+  }
+}
+
+// Register multiple implementations
+builder.registerType(ValidationPlugin).as<IPlugin>()
+builder.registerType(AuthPlugin).as<IPlugin>()
+
+// Just works! Transformer auto-generates resolveTypeAll()
+builder.registerType(PluginHost).as<PluginHost>()
+
+const app = builder.build()
+const host = app.resolveType<PluginHost>()
+host.plugins.length // → 2 (both plugins injected automatically!)
+```
+
+**Supported array syntaxes:**
+- `IFoo[]` - Standard array syntax ✅
+- `Array<IFoo>` - Generic array syntax ✅
+- `readonly IFoo[]` - Readonly arrays ✅
+
+**How it works:**
+- Transformer detects array type parameters at compile-time
+- Generates `(c) => c.resolveTypeAll("IPlugin")` resolver
+- Empty array `[]` returned if no implementations registered
+- Respects lifetime configuration (singleton, transient, per-request)
+
+**Perfect for:**
+- 🔌 Plugin systems
+- 📨 Event handlers / subscribers
+- 🔗 Middleware pipelines
+- ✅ Validation rule sets
+- 📡 Notification channels
+
 ---
 
 ## Lifetimes

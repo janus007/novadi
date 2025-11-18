@@ -276,6 +276,88 @@ builder.registerType(UserService).as<UserService>().autoWire()</code></pre>
 
       <hr class="my-60">
 
+      <!-- Array Injection -->
+      <section id="array-injection">
+        <h2>Array Injection (Multiple Implementations)</h2>
+        <p>
+          <strong>NEW:</strong> The transformer automatically detects array parameters and injects <strong>ALL registered
+          implementations</strong>! Perfect for plugin systems, event handlers, middleware pipelines, and more.
+        </p>
+
+        <h3>Plugin System Example</h3>
+        <pre class="line-numbers"><code class="language-typescript">interface IPlugin {
+  name: string
+  execute(): void
+}
+
+class ValidationPlugin implements IPlugin {
+  name = 'validation'
+  execute() { /* validation logic */ }
+}
+
+class AuthPlugin implements IPlugin {
+  name = 'auth'
+  execute() { /* auth logic */ }
+}
+
+class PluginHost {
+  constructor(public plugins: IPlugin[]) {}  // ✨ Array parameter
+
+  executeAll() {
+    this.plugins.forEach(p => p.execute())
+  }
+}
+
+// Register multiple implementations
+builder.registerType(ValidationPlugin).as<IPlugin>()
+builder.registerType(AuthPlugin).as<IPlugin>()
+
+// Just works! Transformer auto-generates resolveTypeAll()
+builder.registerType(PluginHost).as<PluginHost>()
+
+const app = builder.build()
+const host = app.resolveType<PluginHost>()
+host.plugins.length // → 2 (both plugins injected automatically!)</code></pre>
+
+        <h3>How It Works</h3>
+        <p>The transformer detects array type parameters at compile-time and generates the appropriate resolver:</p>
+
+        <pre class="line-numbers"><code class="language-typescript">// Before transformation:
+builder.registerType(PluginHost).as<PluginHost>()
+
+// After transformation (automatic):
+builder.registerType(PluginHost).as<PluginHost>().autoWire({
+  mapResolvers: [
+    (c) => c.resolveTypeAll("IPlugin")  // 🎯 Auto-generated!
+  ]
+})</code></pre>
+
+        <h3>Supported Syntaxes</h3>
+        <ul class="ml-24 lh-relaxed">
+          <li>✅ <code>IFoo[]</code> - Standard array syntax</li>
+          <li>✅ <code>Array&lt;IFoo&gt;</code> - Generic array syntax</li>
+          <li>✅ <code>readonly IFoo[]</code> - Readonly arrays</li>
+          <li>✅ Empty array <code>[]</code> returned if no implementations registered</li>
+          <li>✅ Respects lifetime configuration (singleton, transient, per-request)</li>
+        </ul>
+
+        <h3>Perfect For</h3>
+        <ul class="ml-24 lh-relaxed">
+          <li>🔌 <strong>Plugin systems</strong> - Load all plugins dynamically</li>
+          <li>📨 <strong>Event handlers</strong> - All subscribers to same event</li>
+          <li>🔗 <strong>Middleware pipelines</strong> - Execute through all middleware</li>
+          <li>✅ <strong>Validation rule sets</strong> - All validators for a type</li>
+          <li>📡 <strong>Notification channels</strong> - Send to all channels</li>
+        </ul>
+
+        <div class="callout callout-success" class="my-24">
+          <strong>✨ Zero Configuration:</strong> Just use array type parameters in your constructor - the transformer
+          handles everything automatically!
+        </div>
+      </section>
+
+      <hr class="my-60">
+
       <!-- Lifetimes -->
       <section id="lifetimes">
         <h2>Lifetimes</h2>

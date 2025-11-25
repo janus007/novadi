@@ -407,6 +407,18 @@ builder.registerType(PluginHost).as<PluginHost>().autoWire({
             <li><strong>Per-Request:</strong> Needs to be shared in one operation? → Yes → .instancePerRequest()</li>
           </ul>
         </div>
+
+        <h3>Self-Registration (Autofac-style AsSelf)</h3>
+        <p>Register a type to be resolved by its concrete class name:</p>
+        <pre class="line-numbers"><code class="language-typescript">// Register as concrete type
+builder.registerType(UserService).asSelf()
+
+// Combine with interface registration
+builder.registerType(ConsoleLogger).asSelf().as&lt;ILogger&gt;()
+
+// Can resolve both ways
+const concrete = app.resolveType&lt;ConsoleLogger&gt;()  // Works
+const interface = app.resolveType&lt;ILogger&gt;()       // Also works</code></pre>
       </section>
 
       <hr class="my-60">

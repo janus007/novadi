@@ -366,6 +366,10 @@ const user = await userService.getUser(123)</code></pre>
                     <code>.as&lt;T&gt;()</code>
                     <span>Bind to interface type</span>
                   </a>
+                  <a href="#asSelf" class="api-chain-link">
+                    <code>.asSelf()</code>
+                    <span>Register as concrete type</span>
+                  </a>
                   <a href="#singleInstance" class="api-chain-link">
                     <code>.singleInstance()</code>
                     <span>Singleton lifetime</span>
@@ -1296,6 +1300,11 @@ const container = new Builder()
                 <td><span style="color: #10b981; font-size: 1.2em;">✅</span></td>
                 <td><code>.as&lt;U&gt;(typeName?: string)</code></td>
                 <td>Bind to interface type. Transformer injects type name.</td>
+              </tr>
+              <tr>
+                <td><span style="color: #10b981; font-size: 1.2em;">✅</span></td>
+                <td><code>.asSelf()</code></td>
+                <td>Register as concrete type (Autofac-style AsSelf). Uses constructor.name.</td>
               </tr>
               <tr>
                 <td><span style="color: #10b981; font-size: 1.2em;">✅</span></td>

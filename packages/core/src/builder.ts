@@ -131,6 +131,13 @@ export class RegistrationBuilder<T> {
   }
 
   /**
+   * Register as the concrete type itself (Autofac-style AsSelf)
+   */
+  asSelf(): this {
+    return this.as(this.pending.constructor?.name)
+  }
+
+  /**
    * Register as default implementation for an interface
    * Combines as() + asDefault()
    */

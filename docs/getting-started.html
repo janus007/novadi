@@ -151,7 +151,7 @@ Key Principles:
 - Package: @novadi/core
 - NO decorators/annotations in business code
 - Convention over configuration
-- Uses .as&lt;T&gt;() and .resolveType&lt;T&gt;()
+- Uses .as&lt;T&gt;(), .asSelf() and .resolveType&lt;T&gt;()
 - TypeScript transformer handles type names automatically
 
 Core API:
@@ -163,6 +163,7 @@ Core API:
 
 3. Register services:
    builder.registerType(ConsoleLogger).as&lt;ILogger&gt;().singleInstance()
+   builder.registerType(UserService).asSelf()  // Autofac-style AsSelf
 
 4. Autowire dependencies BY CONVENTION (recommended):
    builder.registerType(UserService).as&lt;UserService&gt;().autoWire()

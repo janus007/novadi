@@ -356,6 +356,58 @@ describe('Builder - Modules', () => {
   })
 })
 
+describe('Builder - asSelf', () => {
+  let container: Container
+
+  beforeEach(() => {
+    container = new Container()
+  })
+
+  it('should register type as itself with asSelf()', () => {
+    // Arrange
+    class UserService {
+      getValue(): string {
+        return 'user-service'
+      }
+    }
+
+    // Act
+    const builder = container.builder()
+    builder.registerType(UserService).asSelf()
+    const builtContainer = builder.build()
+    const instance = builtContainer.resolveType<UserService>('UserService')
+
+    // Assert
+    expect(instance).toBeInstanceOf(UserService)
+    expect(instance.getValue()).toBe('user-service')
+  })
+
+  it('should allow chaining asSelf() with as<Interface>()', () => {
+    // Arrange
+    interface ILogger {
+      log(message: string): void
+    }
+
+    class ConsoleLogger implements ILogger {
+      log(message: string): void {
+        console.log(message)
+      }
+    }
+
+    // Act
+    const builder = container.builder()
+    builder.registerType(ConsoleLogger).asSelf().as<ILogger>('ILogger')
+    const builtContainer = builder.build()
+
+    // Assert - should resolve both as concrete and interface
+    const concreteInstance = builtContainer.resolveType<ConsoleLogger>('ConsoleLogger')
+    const interfaceInstance = builtContainer.resolveType<ILogger>('ILogger')
+
+    expect(concreteInstance).toBeInstanceOf(ConsoleLogger)
+    expect(interfaceInstance).toBeInstanceOf(ConsoleLogger)
+  })
+})
+
 describe('Builder - Performance Optimizations', () => {
   let container: Container
 

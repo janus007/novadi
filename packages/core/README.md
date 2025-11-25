@@ -361,6 +361,29 @@ builder.registerType(UnitOfWork).as<IUnitOfWork>().instancePerRequest()
 
 Use for: Database transactions, request-scoped state
 
+### Self-Registration (Autofac-style AsSelf)
+
+Register a type to be resolved by its concrete class name:
+
+```typescript
+// Register as concrete type
+builder.registerType(UserService).asSelf()
+
+// Resolve by concrete type
+const service = app.resolveType<UserService>()
+```
+
+Combine with interface registration (like Autofac's `.AsSelf().As<ILogger>()`):
+
+```typescript
+// Register as both concrete type AND interface
+builder.registerType(ConsoleLogger).asSelf().as<ILogger>()
+
+// Can resolve both ways
+const concrete = app.resolveType<ConsoleLogger>()  // Works
+const interface = app.resolveType<ILogger>()       // Also works
+```
+
 ---
 
 ## Real-World Example
